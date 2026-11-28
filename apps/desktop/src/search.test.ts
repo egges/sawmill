@@ -2,9 +2,9 @@ import { expect, test } from "vitest";
 import { highlight, searchSections } from "./search.ts";
 
 const pages = [
-  { id: "a", title: "Alpha", parent: null, kind: "page" as const, database: null },
-  { id: "b", title: "Beta plan", parent: null, kind: "page" as const, database: null },
-  { id: "a1", title: "Plans", parent: "a", kind: "page" as const, database: null },
+  { id: "a", title: "Alpha", parent: null, kind: "page" as const, database: null, position: null },
+  { id: "b", title: "Beta plan", parent: null, kind: "page" as const, database: null, position: null },
+  { id: "a1", title: "Plans", parent: "a", kind: "page" as const, database: null, position: null },
 ];
 const match = (page: string) => ({ page, before: "the ", matched: "plan", after: " is", count: 2 });
 

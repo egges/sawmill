@@ -13,7 +13,7 @@ its own.
 
 ```text
 workspace.json                      workspace settings: {"format", "name"}
-pages/<page-id>/meta.json           {"id", "name", "parent", "properties": {...}, "display": {...}, "row"?: {...}}
+pages/<page-id>/meta.json           {"id", "name", "parent", "position"?, "properties": {...}, "display": {...}, "row"?: {...}}
 pages/<page-id>/page.md             page body (Markdown)
 pages/<page-id>/assets/...          attachments
 databases/<db-id>/schema.json       {"id", "name", "columns": {"<col-id>": {"name", "type", "position", "options"}}}

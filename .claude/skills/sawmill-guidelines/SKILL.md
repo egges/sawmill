@@ -92,6 +92,15 @@ Follow these whenever you work in this repo.
   That version matches the WebKit already in `~/Library/Caches/ms-playwright`
   (`webkit-2104`), so nothing needs downloading. Keep placement logic in
   pure functions (`placement.ts`) so it can be unit-tested.
+- The desktop app has no browser mock, so to try one of its components
+  (drag and drop, layout) mount it alone: a scratchpad `index.html` +
+  `main.tsx` importing it and `app.css` by absolute path, served with
+  `npx vite <dir> --config <dir>/vite.config.mjs` run from `apps/desktop`;
+  that config imports `@vitejs/plugin-react` from `apps/desktop/node_modules`
+  by path, aliases `react`, `react-dom` and `lucide-react` there, and sets
+  `server.fs.strict: false`. The first load reloads once while Vite
+  optimizes dependencies: load again if `evaluate` says the context was
+  destroyed.
 - Menus scroll their active row with `showRow` (placement.ts), never
   `scrollIntoView`: that also scrolls the page, which moves the menu away
   from where it was just placed. And a `DOMRect`'s fields are getters, so

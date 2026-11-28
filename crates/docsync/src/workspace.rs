@@ -168,6 +168,24 @@ impl Workspace {
         })
     }
 
+    /// Where a page sits among the pages next to it, once it's been put
+    /// there by hand: its meta.json's `position`. `None` removes it, and the
+    /// page sorts by name after the ones that have one.
+    pub fn set_page_position(&self, id: &str, position: Option<f64>) -> Result<()> {
+        self.update_json(&self.page_dir(id).join(PAGE_META), |meta| {
+            put_position(meta, position);
+        })
+    }
+
+    /// Put a page under `parent` (`None`: the top level) at `position`, in
+    /// one write.
+    pub fn move_page(&self, id: &str, parent: Option<&str>, position: Option<f64>) -> Result<()> {
+        self.update_json(&self.page_dir(id).join(PAGE_META), |meta| {
+            meta.insert("parent".into(), parent.into());
+            put_position(meta, position);
+        })
+    }
+
     pub fn set_page_property(&self, id: &str, key: &str, value: Value) -> Result<()> {
         self.update_json(&self.page_dir(id).join(PAGE_META), |meta| {
             object_field(meta, "properties").insert(key.into(), value);
@@ -981,4 +999,11 @@ fn list_ids(dir: &Path, marker: Option<&str>) -> Result<Vec<String>> {
     }
     ids.sort();
     Ok(ids)
+}
+
+fn put_position(meta: &mut Map<String, Value>, position: Option<f64>) {
+    match position {
+        Some(position) => meta.insert("position".into(), json!(position)),
+        None => meta.remove("position"),
+    };
 }
