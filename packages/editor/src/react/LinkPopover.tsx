@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { LinkRange } from "../commands.ts";
 import type { PageEditor } from "../editor.ts";
 import { CheckIcon, CopyIcon, LinkIcon, PencilIcon, UnlinkIcon } from "./icons.tsx";
-import { below } from "./position.ts";
+import { useMenuPlacement } from "./position.ts";
 
 /** How long the pointer rests on a link before the box shows, and how long it stays after leaving. */
 const SHOW_DELAY = 350;
@@ -91,11 +91,13 @@ export function LinkPopover({
     return () => document.removeEventListener("mousedown", outside, true);
   }, [editing]);
 
+  // Inside the window: above the link when there's no room below it.
+  useMenuPlacement(box, link ? () => view.coordsAtPos(link.from) : null);
+
   if (!link || !container.current) return null;
   // Check it's still a link where we think it is.
   const current = commands.linkAt(link.from);
   if (!current) return null;
-  const position = below(view, container.current, current.from);
 
   const apply = (href: string, text?: string) => {
     commands.updateLinkAt(current.from, href.trim(), text);
@@ -117,7 +119,6 @@ export function LinkPopover({
     <div
       ref={box}
       className="page-link-popover"
-      style={{ left: position.left, top: position.top }}
       role="dialog"
       aria-label="Link"
       onMouseEnter={() => clearTimeout(timer.current)}

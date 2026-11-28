@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { slashState } from "../commands.ts";
 import type { PageEditor } from "../editor.ts";
 import { matchBlocks } from "./blocks.ts";
-import { below } from "./position.ts";
+import { showRow } from "../placement.ts";
+import { useMenuPlacement } from "./position.ts";
 import type { KeyHandler } from "./PageEditorView.tsx";
 
 /** Block menu shown when "/" is typed at the start of an empty line. */
@@ -27,7 +28,7 @@ export function SlashMenu({ editor, container, keyHandler }: {
     if (!slash) setDismissedAt(null);
   }, [slash === null]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    list.current?.querySelector(".active")?.scrollIntoView({ block: "nearest" });
+    showRow(list.current, list.current?.querySelector(".active"));
   }, [active]);
 
   const choose = (index: number) => {
@@ -59,14 +60,15 @@ export function SlashMenu({ editor, container, keyHandler }: {
     };
   });
 
+  // Inside the window: above the line when there's no room below, and so on.
+  useMenuPlacement(list, open ? () => view.coordsAtPos(slash.to) : null);
+
   if (!open || !container.current) return null;
-  const position = below(view, container.current, slash.to);
 
   return (
     <div
       ref={list}
       className="page-menu page-slash-menu"
-      style={{ left: position.left, top: position.top }}
       role="listbox"
       aria-label="Insert block"
     >

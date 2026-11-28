@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { TextSelection } from "@milkdown/kit/prose/state";
+import type { EditorView } from "@milkdown/kit/prose/view";
 import { type InlineFormat, formatState } from "../commands.ts";
 import type { PageEditor } from "../editor.ts";
 import { BLOCKS } from "./blocks.ts";
-import { above } from "./position.ts";
+import { type Line, placeToolbar, showRow } from "../placement.ts";
+import { useMenuPlacement } from "./position.ts";
 
 const INLINE: { format: InlineFormat; label: string; icon: string; shortcut?: string }[] = [
   { format: "bold", label: "Bold", icon: "B", shortcut: "⌘B" },
@@ -25,6 +27,8 @@ export function SelectionToolbar({ editor, container }: {
   const [turnIntoOpen, setTurnIntoOpen] = useState(false);
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
   const linkInput = useRef<HTMLInputElement>(null);
+  const toolbar = useRef<HTMLDivElement>(null);
+  const turnIntoMenu = useRef<HTMLDivElement>(null);
   const format = formatState(view.state);
 
   const visible =
@@ -43,14 +47,18 @@ export function SelectionToolbar({ editor, container }: {
   }, [visible]);
   // The block's own kind is marked in the menu: keep it in view when the menu scrolls.
   useEffect(() => {
-    if (turnIntoOpen) container.current?.querySelector(".page-toolbar-menu .active")?.scrollIntoView?.({ block: "nearest" });
+    if (turnIntoOpen) showRow(turnIntoMenu.current, turnIntoMenu.current?.querySelector(".active"));
   }, [turnIntoOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (linkDraft !== null) linkInput.current?.focus();
   }, [linkDraft !== null]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Inside the window: below the selection when there's no room above it,
+  // and the Turn into menu above its button when there's none below.
+  useMenuPlacement(toolbar, visible ? () => firstLine(view, selection.from, selection.to) : null, placeToolbar);
+  useMenuPlacement(turnIntoMenu, turnIntoOpen ? () => turnIntoMenu.current!.previousElementSibling!.getBoundingClientRect() : null);
+
   if (!visible || !container.current) return null;
-  const position = above(view, container.current, selection.from, selection.to);
   const current = BLOCKS.find((b) => b.format === format.block);
 
   const applyLink = (href: string) => {
@@ -60,7 +68,7 @@ export function SelectionToolbar({ editor, container }: {
   };
 
   return (
-    <div className="page-toolbar" style={{ left: position.left, top: position.top }} role="toolbar" aria-label="Formatting">
+    <div ref={toolbar} className="page-toolbar" role="toolbar" aria-label="Formatting">
       {linkDraft !== null ? (
         <form
           className="page-toolbar-link"
@@ -107,7 +115,7 @@ export function SelectionToolbar({ editor, container }: {
               {current?.label ?? "Turn into"} <span aria-hidden>▾</span>
             </button>
             {turnIntoOpen && (
-              <div className="page-menu page-toolbar-menu" role="menu">
+              <div ref={turnIntoMenu} className="page-menu page-toolbar-menu" role="menu">
                 {BLOCKS.filter((b) => b.turnInto).map((block) => (
                   <button
                     key={block.format}
@@ -156,4 +164,12 @@ export function SelectionToolbar({ editor, container }: {
       )}
     </div>
   );
+}
+
+/** The selection's first line, from where it starts to where it ends on that line. */
+function firstLine(view: EditorView, from: number, to: number): Line {
+  const start = view.coordsAtPos(from);
+  const end = view.coordsAtPos(to);
+  const sameLine = Math.abs(start.top - end.top) < 4;
+  return { left: start.left, right: sameLine ? end.left : start.left, top: Math.min(start.top, end.top), bottom: start.bottom };
 }

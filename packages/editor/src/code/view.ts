@@ -7,6 +7,7 @@ import { $view } from "@milkdown/kit/utils";
 import { chooseLanguage } from "./auto.ts";
 import { detected } from "./highlight.ts";
 import { LANGUAGES, findLanguage } from "./languages.ts";
+import { placeMenu, showRow, windowSize } from "../placement.ts";
 
 const svg = (body: string, size = 14) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
@@ -180,7 +181,7 @@ export class CodeBlockView implements NodeView {
         empty.textContent = "No language found";
         list.append(empty);
       }
-      list.querySelector(".active")?.scrollIntoView?.({ block: "nearest" });
+      showRow(list, list.querySelector(".active"));
     };
 
     input.addEventListener("input", () => {
@@ -209,7 +210,8 @@ export class CodeBlockView implements NodeView {
     this.dom.classList.add("menu-open");
     this.button.setAttribute("aria-expanded", "true");
     draw();
-    input.focus();
+    placeLanguageMenu(menu, list, this.header);
+    input.focus({ preventScroll: true });
   }
 
   private closeMenu() {
@@ -275,3 +277,18 @@ export class CodeBlockView implements NodeView {
 }
 
 export const codeBlockView = $view(codeBlockSchema.node, () => (node, view, getPos) => new CodeBlockView(node, view, getPos));
+
+/**
+ * Keeps the language menu inside the window: below the header when it
+ * fits, else above it (growing upwards as the search narrows the list),
+ * else shorter. Decided once, with every language listed.
+ */
+function placeLanguageMenu(menu: HTMLElement, list: HTMLElement, header: HTMLElement) {
+  const line = header.getBoundingClientRect();
+  const place = placeMenu(line, { width: menu.offsetWidth, height: menu.offsetHeight }, windowSize(header.ownerDocument));
+  menu.classList.toggle("above", place.top < line.top);
+  if (place.maxHeight !== null) {
+    // The search field stays; the list gets what's left.
+    list.style.maxHeight = `${Math.max(place.maxHeight - (menu.offsetHeight - list.offsetHeight), 60)}px`;
+  }
+}

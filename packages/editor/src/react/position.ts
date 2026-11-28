@@ -1,25 +1,32 @@
-import type { EditorView } from "@milkdown/kit/prose/view";
+import { type RefObject, useLayoutEffect } from "react";
+import { type Line, type Place, placeBeside, placeMenu, windowSize } from "../placement.ts";
 
-/** Where a menu goes, in pixels relative to the editor's container. */
-export interface MenuPosition {
-  left: number;
-  top: number;
-}
+export type { Line };
 
-/** Centred above the range `from`–`to` (for the selection toolbar). */
-export function above(view: EditorView, container: HTMLElement, from: number, to: number): MenuPosition {
-  const box = container.getBoundingClientRect();
-  const start = view.coordsAtPos(from);
-  const end = view.coordsAtPos(to);
-  // On a multi-line selection, centre over the first line.
-  const sameLine = Math.abs(start.top - end.top) < 4;
-  const centre = sameLine ? (start.left + end.left) / 2 : start.left;
-  return { left: centre - box.left, top: Math.min(start.top, end.top) - box.top };
-}
-
-/** Just below position `pos`, left-aligned (for the slash menu). */
-export function below(view: EditorView, container: HTMLElement, pos: number): MenuPosition {
-  const box = container.getBoundingClientRect();
-  const at = view.coordsAtPos(pos);
-  return { left: at.left - box.left, top: at.bottom - box.top };
+/**
+ * Keeps `menu` inside the window, next to the line `anchor()` gives, as
+ * `place` puts it (`placeMenu`, `placeBeside` or `placeToolbar`). Call on
+ * every render, with a null anchor while the menu is closed. It sets the menu's position
+ * itself, relative to the element it's positioned in, so don't also give
+ * the menu `left` or `top`.
+ */
+export function useMenuPlacement(menu: RefObject<HTMLElement | null>, anchor: (() => Line) | null, place: Place = placeMenu) {
+  useLayoutEffect(() => {
+    const el = menu.current;
+    const parent = el?.offsetParent;
+    if (!el || !parent || !anchor) return;
+    // Its natural size: offsetWidth and offsetHeight ignore the opening animation's transform.
+    el.style.maxHeight = "";
+    const line = anchor();
+    const size = { width: el.offsetWidth, height: el.offsetHeight };
+    // Not `{ ...line }`: a DOMRect's fields are getters, which spreading leaves out.
+    const row = { left: line.left, right: line.right ?? line.left, top: line.top, bottom: line.bottom };
+    const at = place(row, size, windowSize());
+    const box = parent.getBoundingClientRect();
+    el.style.left = `${at.left - box.left}px`;
+    el.style.top = `${at.top - box.top}px`;
+    el.style.maxHeight = at.maxHeight === null ? "" : `${at.maxHeight}px`;
+    // A submenu on the left of its row slides in from the right.
+    if (place === placeBeside) el.style.setProperty("--page-menu-from", at.left < row.left ? "translateX(4px)" : "");
+  });
 }

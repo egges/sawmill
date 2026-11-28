@@ -102,6 +102,7 @@ export function BlockHandle({ editor, container }: {
   const { view, commands } = editor;
   const [hovered, setHovered] = useState<number | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const handle = useRef<HTMLDivElement>(null);
   const [drop, setDropState] = useState<DropTarget | null>(null);
   // For the window's pointer listeners, which outlive a render.
   const dropRef = useRef<DropTarget | null>(null);
@@ -300,6 +301,7 @@ export function BlockHandle({ editor, container }: {
   return (
     <>
       {block && position && (<div
+        ref={handle}
         className={`page-block-handle${frozen ? " active" : ""}`}
         style={{ left: position.left, top: position.top }}
         // Never take focus or the selection from the editor.
@@ -337,8 +339,7 @@ export function BlockHandle({ editor, container }: {
         <BlockMenu
           editor={editor}
           block={block}
-          left={position.left}
-          top={position.top + HANDLE_HEIGHT + 4}
+          anchor={() => handle.current!.getBoundingClientRect()}
           onClose={() => {
             setMenuOpen(false);
             view.focus();

@@ -3,6 +3,8 @@ import { type Block, blockStartingAt, focusBlock, moveBlockStep } from "../block
 import { formatState } from "../commands.ts";
 import type { PageEditor } from "../editor.ts";
 import { BLOCKS } from "./blocks.ts";
+import { placeBeside, showRow } from "../placement.ts";
+import { type Line, useMenuPlacement } from "./position.ts";
 import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon, CopyIcon, DuplicateIcon, TrashIcon, TurnIntoIcon } from "./icons.tsx";
 
 const MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -23,15 +25,16 @@ interface Action {
 }
 
 /** What the grip's menu does to a block: turn into, duplicate, copy, move, delete. */
-export function BlockMenu({ editor, block, left, top, onClose }: {
+export function BlockMenu({ editor, block, anchor, onClose }: {
   editor: PageEditor;
   block: Block;
-  left: number;
-  top: number;
+  /** Where the block's handle is, in window coordinates: the menu opens below it, or above. */
+  anchor: () => Line;
   onClose: () => void;
 }) {
   const { view, commands } = editor;
   const menu = useRef<HTMLDivElement>(null);
+  const submenu = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const [turnInto, setTurnInto] = useState<number | null>(null); // active row in the submenu, when open
 
@@ -73,15 +76,20 @@ export function BlockMenu({ editor, block, left, top, onClose }: {
     { id: "delete", label: "Delete", icon: <TrashIcon />, shortcut: "Del", danger: true, run: done(() => commands.deleteBlock(current())) },
   ];
 
+  // Both inside the window. The submenu goes beside its row, on the side with room.
+  useMenuPlacement(menu, anchor);
+  useMenuPlacement(submenu, turnInto !== null ? () => submenu.current!.parentElement!.getBoundingClientRect() : null, placeBeside);
+
   useEffect(() => {
-    menu.current?.focus();
+    // Placed already, so focusing it doesn't scroll the page.
+    menu.current?.focus({ preventScroll: true });
   }, []);
 
   // Keep the active row in view: the submenu scrolls when it's taller than the window.
   useEffect(() => {
     const submenu = menu.current?.querySelector(".page-block-submenu");
     const row = submenu?.querySelector(".active") ?? submenu?.querySelector('[aria-checked="true"]');
-    row?.scrollIntoView?.({ block: "nearest" });
+    showRow(submenu, row);
   }, [turnInto]);
 
   // Clicking anywhere else closes it.
@@ -157,7 +165,6 @@ export function BlockMenu({ editor, block, left, top, onClose }: {
     <div
       ref={menu}
       className="page-menu page-block-menu"
-      style={{ left, top }}
       role="menu"
       aria-label="Block"
       tabIndex={-1}
@@ -184,7 +191,7 @@ export function BlockMenu({ editor, block, left, top, onClose }: {
             {action.id === "turnInto" && <ChevronRightIcon size={14} />}
           </button>
           {action.id === "turnInto" && turnInto !== null && (
-            <div className="page-menu page-block-submenu" role="menu" aria-label="Turn into">
+            <div ref={submenu} className="page-menu page-block-submenu" role="menu" aria-label="Turn into">
               {turnOptions.map((option, i) => (
                 <button
                   key={option.format}
