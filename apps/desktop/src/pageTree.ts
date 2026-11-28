@@ -4,7 +4,7 @@ import type { PageSummary } from "./api.ts";
 
 export type Children = Map<string | null, PageSummary[]>;
 
-/** Pages by parent, in list order (the Rust side sorts by title). */
+/** Pages by parent, in list order (the Rust side sorts by position, then title). */
 export function childrenOf(pages: PageSummary[]): Children {
   const map: Children = new Map();
   for (const page of pages) {

@@ -3,6 +3,7 @@
 // cards and where a dropped one goes, and what a card shows.
 import type { CellValue, Column, Database, Row, View } from "./api.ts";
 import { cellText, fits, optionTone } from "./databases.ts";
+import { dropPositions as placeBetween } from "./positions.ts";
 
 /** Columns a board can group by: one lane per choice, or checked and not. */
 export function groupableColumns(columns: Column[]): Column[] {
@@ -82,27 +83,9 @@ export function viewOrder(rows: Row[], view: string): Row[] {
   });
 }
 
-/**
- * The positions, by row id, that put `row` before the card at `index` of
- * `cards`: a lane's other cards, in order (`index` past the end: last).
- * Nearly always one position, halfway between its new neighbours, so a
- * move changes one number in one file; none when the row sorts there
- * already. Neighbours that leave no room between them (cards without a
- * position, or after very many drops in one spot) get the lane numbered
- * again.
- */
+/** The positions that put `row` before the card at `index` of a lane's other `cards` (see positions.ts). */
 export function dropPositions(cards: Row[], index: number, row: Row, view: string): Record<string, number> {
-  const before = cards[index - 1];
-  const after = cards[index];
-  const low = before ? orderKey(before, view) : -Infinity;
-  const high = after ? orderKey(after, view) : Infinity;
-  const fits = (key: number) => Number.isFinite(key) && low < key && key < high;
-  if (fits(orderKey(row, view)) || (!before && !after)) return {};
-  const key = !before ? high - 1 : !after ? low + 1 : (low + high) / 2;
-  if (fits(key)) return { [row.id]: key };
-  const start = cards.map((c) => orderKey(c, view)).find(Number.isFinite) ?? 0;
-  const order = [...cards.slice(0, index), row, ...cards.slice(index)];
-  return Object.fromEntries(order.map((r, i) => [r.id, start + i]));
+  return placeBetween(cards, index, row, (r) => orderKey(r, view));
 }
 
 /** The column whose cell is a card's title: the title column, which every database has. */

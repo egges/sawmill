@@ -1,12 +1,12 @@
 //! The page list the sidebar shows.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use docsync::Workspace;
 use docsync::database_page::DatabasePage;
 use serde::Serialize;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct PageSummary {
     pub id: String,
     pub title: String,
@@ -18,9 +18,13 @@ pub struct PageSummary {
     pub kind: &'static str,
     /// The database a database page shows, once chosen.
     pub database: Option<String>,
+    /// Where it was put by hand among the pages next to it. Pages without
+    /// one come after those with one, by name.
+    pub position: Option<f64>,
 }
 
-/// Every page, sorted by title, with orphans moved to the top level.
+/// Every page, in sidebar order (by position, then by title), with orphans
+/// moved to the top level.
 pub fn list_pages(ws: &Workspace) -> docsync::Result<Vec<PageSummary>> {
     let mut pages = Vec::new();
     // Rows are pages too: under the first page that shows their database,
@@ -41,6 +45,7 @@ pub fn list_pages(ws: &Workspace) -> docsync::Result<Vec<PageSummary>> {
             parent: meta["parent"].as_str().map(str::to_string),
             kind: if database.is_some() { "database" } else { "page" },
             database: database.and_then(|d| d.database),
+            position: meta["position"].as_f64().filter(|p| p.is_finite()),
             id,
         });
     }
@@ -56,12 +61,58 @@ pub fn list_pages(ws: &Workspace) -> docsync::Result<Vec<PageSummary>> {
             parent: shown_on.get(&db).cloned(),
             kind: "row",
             database: Some(db),
+            position: None,
             id,
         });
     }
     normalize_parents(&mut pages);
-    pages.sort_by(|a, b| (a.title.to_lowercase(), &a.id).cmp(&(b.title.to_lowercase(), &b.id)));
+    pages.sort_by(|a, b| {
+        let position = |p: &PageSummary| p.position.unwrap_or(f64::INFINITY);
+        position(a)
+            .total_cmp(&position(b))
+            .then_with(|| (a.title.to_lowercase(), &a.id).cmp(&(b.title.to_lowercase(), &b.id)))
+    });
     Ok(pages)
+}
+
+/// Move a page under `parent` (`None`: the top level) and set positions:
+/// the moved page's, and its new neighbours' when they had to be numbered
+/// again to make room. A position of `None` removes it. Refuses rows, a
+/// parent that is a row or doesn't exist, and a parent inside the page
+/// itself.
+pub fn move_page(
+    ws: &Workspace,
+    id: &str,
+    parent: Option<&str>,
+    positions: &BTreeMap<String, Option<f64>>,
+) -> Result<(), String> {
+    let pages = list_pages(ws).map_err(|e| e.to_string())?;
+    let find = |id: &str| pages.iter().find(|p| p.id == id && p.kind != "row");
+    if find(id).is_none() {
+        return Err("This page no longer exists.".into());
+    }
+    if let Some(parent) = parent {
+        if find(parent).is_none() {
+            return Err("The page to move it into no longer exists.".into());
+        }
+        if subtree(&pages, id).iter().any(|p| p == parent) {
+            return Err("A page can't go inside itself or a page inside it.".into());
+        }
+    }
+    for (page, position) in positions {
+        if find(page).is_none() {
+            return Err("A page next to it no longer exists.".into());
+        }
+        if position.is_some_and(|p| !p.is_finite()) {
+            return Err("A position is a number.".into());
+        }
+    }
+    let own = positions.get(id).copied().unwrap_or_else(|| find(id).and_then(|p| p.position));
+    ws.move_page(id, parent, own).map_err(|e| e.to_string())?;
+    for (page, position) in positions.iter().filter(|(page, _)| *page != id) {
+        ws.set_page_position(page, *position).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 /// A page and every page inside it, at any depth, deepest first, so the page
@@ -166,6 +217,7 @@ mod tests {
             parent: parent.map(Into::into),
             kind: "page",
             database: None,
+            position: None,
         }
     }
 
@@ -287,5 +339,53 @@ mod tests {
         assert!(!ws.database_exists(&db));
         assert!(ws.database_exists(&shared_db));
         assert!(ws.page_exists(&elsewhere) && ws.page_exists(&other));
+    }
+
+    #[test]
+    fn pages_put_in_place_come_first_in_their_order() {
+        let dir = tempfile::tempdir().unwrap();
+        let ws = Workspace::new(dir.path());
+        let a = ws.create_page("a", None).unwrap();
+        let b = ws.create_page("b", None).unwrap();
+        let c = ws.create_page("c", None).unwrap();
+        ws.set_page_position(&c, Some(1.0)).unwrap();
+        ws.set_page_position(&b, Some(2.0)).unwrap();
+        let order: Vec<_> = list_pages(&ws).unwrap().into_iter().map(|p| p.id).collect();
+        assert_eq!(order, [c, b, a]);
+    }
+
+    #[test]
+    fn moving_a_page_sets_its_parent_and_positions() {
+        let dir = tempfile::tempdir().unwrap();
+        let ws = Workspace::new(dir.path());
+        let top = ws.create_page("Top", None).unwrap();
+        let x = ws.create_page("x", Some(&top)).unwrap();
+        let moved = ws.create_page("Moved", None).unwrap();
+        let positions = BTreeMap::from([(moved.clone(), Some(0.5)), (x.clone(), Some(1.0))]);
+        move_page(&ws, &moved, Some(&top), &positions).unwrap();
+        let pages = list_pages(&ws).unwrap();
+        let get = |id: &str| pages.iter().find(|p| p.id == id).unwrap();
+        assert_eq!(get(&moved).parent.as_deref(), Some(top.as_str()));
+        assert_eq!(get(&moved).position, Some(0.5));
+        assert_eq!(get(&x).position, Some(1.0));
+
+        // Back to the top level, with no position: last there, by name.
+        let cleared = BTreeMap::from([(moved.clone(), None)]);
+        move_page(&ws, &moved, None, &cleared).unwrap();
+        let meta = ws.read_page_meta(&moved).unwrap();
+        assert!(meta["parent"].is_null() && meta.get("position").is_none());
+    }
+
+    #[test]
+    fn a_page_cant_move_inside_itself() {
+        let dir = tempfile::tempdir().unwrap();
+        let ws = Workspace::new(dir.path());
+        let top = ws.create_page("Top", None).unwrap();
+        let child = ws.create_page("Child", Some(&top)).unwrap();
+        let none = BTreeMap::new();
+        assert!(move_page(&ws, &top, Some(&child), &none).is_err());
+        assert!(move_page(&ws, &top, Some(&top), &none).is_err());
+        assert!(move_page(&ws, &top, Some("gone"), &none).is_err());
+        assert_eq!(ws.read_page_meta(&top).unwrap()["parent"], serde_json::Value::Null);
     }
 }

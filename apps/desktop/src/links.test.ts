@@ -2,8 +2,8 @@ import { expect, test } from "vitest";
 import { linkTarget } from "./links.ts";
 
 const pages = [
-  { id: "p1a2b3", title: "Plans", parent: null, kind: "page" as const, database: null },
-  { id: "q9z8y7", title: "Launch", parent: null, kind: "page" as const, database: null },
+  { id: "p1a2b3", title: "Plans", parent: null, kind: "page" as const, database: null, position: null },
+  { id: "q9z8y7", title: "Launch", parent: null, kind: "page" as const, database: null, position: null },
 ];
 
 test("web and mail addresses open outside the app", () => {

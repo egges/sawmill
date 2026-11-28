@@ -219,14 +219,16 @@ moved to step 5.
       last. In a sorted view a card dropped in another lane goes where the
       sort puts it, and dragging within a lane asks whether to remove the
       sort (`apps/desktop/src/boards.ts`).
-- [ ] **Drag pages in the sidebar.** Drag a page in the left panel to move
-      it: onto another page to put it inside, out to the top level, or
-      between two pages to order them by hand. Today the tree is sorted by
-      name and a page stays under the page it was made in. The order would
-      be a `position` in each page's `meta.json`, as for columns and cards,
-      so a move changes one file; pages nobody dragged keep sorting by
-      name. `Workspace::set_parent` already moves a page, but the app
-      doesn't call it yet.
+- [x] **Drag pages in the sidebar.** (#61) Drag a page in the left panel
+      to move it: onto another page to put it inside, between two pages to
+      put it there, or below the tree to move it out to the top level. A
+      line or a highlight shows where it will land, the tree scrolls near
+      its edges, and Esc puts it back; a page can't go inside itself. The
+      order is a `position` in each page's `meta.json`, as for columns and
+      cards, so a move usually changes one file (a level nobody arranged
+      yet is numbered once). Pages nobody dragged come after, by name, and
+      a page dropped onto another goes there (`apps/desktop/src/PageTree.tsx`,
+      `pageMoves.ts`, `tree::move_page`).
 - [ ] **Callouts.** A framed block with an icon and a colour, as in
       Notion, written as a blockquote alert so GitHub and Obsidian show it
       too:

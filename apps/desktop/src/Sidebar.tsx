@@ -1,10 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useRef } from "react";
 import {
-  ChevronDown,
-  ChevronRight,
   CircleArrowUp,
-  FileText,
-  Files,
   Plus,
   Search,
   Settings,
@@ -13,7 +9,8 @@ import {
 } from "lucide-react";
 import type { PageSummary, SyncStatus, WorkspaceInfo } from "./api.ts";
 import { ImportMenu } from "./ImportMenu.tsx";
-import { childrenOf } from "./pageTree.ts";
+import type { PageMove } from "./pageMoves.ts";
+import { PageTree } from "./PageTree.tsx";
 import type { SettingsSection } from "./Settings.tsx";
 import { SHORTCUTS, keysLabel, tip } from "./shortcuts.ts";
 import { SIDEBAR_WIDTH } from "./sidebarLayout.ts";
@@ -28,6 +25,8 @@ interface SidebarProps {
   status: SyncStatus | null;
   onSelect: (id: string) => void;
   onCreate: (parent: string | null) => void;
+  /** Move a page dragged in the tree. */
+  onMove: (id: string, move: PageMove) => void;
   /** A new page that shows a database. */
   onCreateDatabase: () => void;
   /** Import Markdown files and folders as pages. */
@@ -51,9 +50,6 @@ interface SidebarProps {
 
 export function Sidebar(props: SidebarProps) {
   const { workspace, pages, selected, status } = props;
-  // Rows are pages too, but they're shown in their database, not here.
-  const children = useMemo(() => childrenOf(pages.filter((p) => p.kind !== "row")), [pages]);
-
   return (
     // Hidden, it stays in the page (so it can slide closed and open) but
     // can't be clicked or tabbed into.
@@ -79,19 +75,13 @@ export function Sidebar(props: SidebarProps) {
             </button>
           </div>
           <nav className="tree" aria-label="Pages">
-            <ul className="tree-level" role="tree">
-              {(children.get(null) ?? []).map((page) => (
-                <TreeItem
-                  key={page.id}
-                  page={page}
-                  children={children}
-                  depth={0}
-                  selected={selected}
-                  onSelect={props.onSelect}
-                  onCreate={props.onCreate}
-                />
-              ))}
-            </ul>
+            <PageTree
+              pages={pages}
+              selected={selected}
+              onSelect={props.onSelect}
+              onCreate={props.onCreate}
+              onMove={props.onMove}
+            />
             <button className="tree-new" onClick={() => props.onCreate(null)}>
               <Plus size={14} aria-hidden />
               <span>New page</span>
@@ -188,75 +178,5 @@ function Resizer({ width, onResize }: { width: number; onResize: (width: number)
         e.preventDefault();
       }}
     />
-  );
-}
-
-function TreeItem({
-  page,
-  children,
-  depth,
-  selected,
-  onSelect,
-  onCreate,
-}: {
-  page: PageSummary;
-  children: Map<string | null, PageSummary[]>;
-  depth: number;
-  selected: string | null;
-  onSelect: (id: string) => void;
-  onCreate: (parent: string | null) => void;
-}) {
-  const [open, setOpen] = useState(true);
-  const kids = children.get(page.id) ?? [];
-  return (
-    <li role="treeitem" aria-expanded={kids.length ? open : undefined} aria-selected={page.id === selected}>
-      <div
-        className={"tree-row" + (page.id === selected ? " selected" : "")}
-        style={{ paddingLeft: 8 + depth * 14 }}
-        onClick={() => onSelect(page.id)}
-      >
-        <button
-          className="disclosure"
-          aria-label={open ? "Collapse" : "Expand"}
-          style={{ visibility: kids.length ? "visible" : "hidden" }}
-          onClick={(e) => {
-            e.stopPropagation();
-            setOpen(!open);
-          }}
-        >
-          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        </button>
-        <span className="tree-icon" aria-hidden>
-          {page.kind === "database" ? <Sheet size={15} /> : kids.length ? <Files size={15} /> : <FileText size={15} />}
-        </span>
-        <span className={"tree-title" + (page.title ? "" : " untitled")}>{page.title || "Untitled"}</span>
-        <button
-          className="icon-button add-child"
-          title="Add a page inside"
-          aria-label="Add a page inside"
-          onClick={(e) => {
-            e.stopPropagation();
-            onCreate(page.id);
-          }}
-        >
-          <Plus size={14} />
-        </button>
-      </div>
-      {open && kids.length > 0 && (
-        <ul className="tree-level" role="group">
-          {kids.map((kid) => (
-            <TreeItem
-              key={kid.id}
-              page={kid}
-              children={children}
-              depth={depth + 1}
-              selected={selected}
-              onSelect={onSelect}
-              onCreate={onCreate}
-            />
-          ))}
-        </ul>
-      )}
-    </li>
   );
 }

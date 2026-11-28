@@ -1374,6 +1374,25 @@ pub async fn create_page(
     .await
 }
 
+/// Move a page in the sidebar: under `parent` (null: the top level), with
+/// the positions that put it in its place (see `tree::move_page`).
+#[tauri::command]
+pub async fn move_page(
+    state: State<'_, AppState>,
+    id: String,
+    parent: Option<String>,
+    positions: std::collections::BTreeMap<String, Option<f64>>,
+) -> CmdResult<()> {
+    let (engine, edited) = state.engine()?;
+    blocking("move_page", move || {
+        tree::move_page(&Workspace::new(engine.root()), &id, parent.as_deref(), &positions)?;
+        devlog::info("app", format!("Moved page {id}"));
+        edited();
+        Ok(())
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn rename_page(state: State<'_, AppState>, id: String, title: String) -> CmdResult<()> {
     let (engine, edited) = state.engine()?;

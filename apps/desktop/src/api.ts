@@ -82,6 +82,8 @@ export interface PageSummary {
   kind: "page" | "database" | "row";
   /** The database a database page shows, once chosen. */
   database: string | null;
+  /** Where it was put by hand among the pages next to it; pages without one come after, by name. */
+  position: number | null;
 }
 
 /** A place in a page's text where a search query appears. */
@@ -342,6 +344,9 @@ export const api = {
       headers: { page, name: encodeURIComponent(file.name || "image") },
     }),
   createPage: (title: string, parent: string | null) => invoke<string>("create_page", { title, parent }),
+  /** Put a page under `parent` (null: the top level) with these positions; null removes one. */
+  movePage: (id: string, parent: string | null, positions: Record<string, number | null>) =>
+    invoke<void>("move_page", { id, parent, positions }),
   importMarkdown: (sources: string[], parent: string | null) =>
     invoke<ImportResult>("import_markdown", { sources, parent }),
   /** A page that shows a database. With no databases yet in the workspace it gets a new one; otherwise it asks. */

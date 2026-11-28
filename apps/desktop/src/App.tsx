@@ -19,6 +19,7 @@ import { importNotice } from "./importing.ts";
 import { log } from "./devlog.ts";
 import { PageView, type PageViewHandle } from "./PageView.tsx";
 import { linkTarget } from "./links.ts";
+import type { PageMove } from "./pageMoves.ts";
 import { displayOrder, trail } from "./pageTree.ts";
 import { Search } from "./Search.tsx";
 import { Settings, type SettingsSection } from "./Settings.tsx";
@@ -196,6 +197,16 @@ function WorkspaceView({
     }
   };
 
+  const movePage = async (id: string, move: PageMove) => {
+    try {
+      await api.movePage(id, move.parent, move.positions);
+      await reload();
+    } catch (e) {
+      setError(errorText(e));
+      await reload();
+    }
+  };
+
   const importPages = async (sources: string[]) => {
     try {
       await page.current?.flush();
@@ -294,6 +305,7 @@ function WorkspaceView({
         status={status}
         onSelect={select}
         onCreate={create}
+        onMove={(id, move) => void movePage(id, move)}
         onCreateDatabase={() => void create(null, "", "database")}
         onImport={(sources) => void importPages(sources)}
         onWorkspaceChange={onChange}
